@@ -1,0 +1,8 @@
+<!DOCTYPE RCC>
+<RCC version="1.0">
+    <qresource prefix="/">
+        <file alias="Main.qml">qml/Main.qml</file>
+        <file alias="ExtractView.qml">qml/ExtractView.qml</file>
+        <file alias="CreateView.qml">qml/CreateView.qml</file>
+    </qresource>
+</RCC>

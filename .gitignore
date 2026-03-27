@@ -1,0 +1,5 @@
+build/
+.qt/
+lastchat.txt
+*.o
+*.a
