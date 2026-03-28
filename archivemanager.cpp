@@ -100,10 +100,10 @@ void ArchiveWorker::create(const QString &op,const QStringList &sp,const QString
         if(fi.isDir()){archive_entry_set_filetype(entry,AE_IFDIR);archive_entry_set_perm(entry,0755);archive_entry_set_size(entry,0);}
         else{archive_entry_set_filetype(entry,AE_IFREG);archive_entry_set_perm(entry,0644);archive_entry_set_size(entry,fi.size());}
         archive_write_header(a,entry);
-        if(fi.isFile()){QFile ff(fe.abs);if(ff.open(QIODevice::ReadOnly)){qint64 len;
+        if(fi.isFile()){QFile ff(fe.abs);if(ff.open(QIODevice::ReadOnly)){qint64 len,le2=w;
             while((len=ff.read(buf,sizeof(buf)))>0){
                 if(m_cancelRequested.loadAcquire()){archive_write_close(a);archive_write_free(a);QFile::remove(op);emit finished(false,"Cancelled");return;}
-                archive_write_data(a,buf,len);w+=len;}}}
+                archive_write_data(a,buf,len);w+=len;if(tb>0&&(w-le2)>=256*1024){emit progress(qMin(0.99,(qreal)w/tb),fe.rel);le2=w;}}}}
         archive_entry_free(entry);}
     archive_write_close(a);archive_write_free(a);emit progress(1.0,"Complete");emit finished(true,QString());}
 

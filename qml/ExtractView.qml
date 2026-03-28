@@ -16,8 +16,8 @@ Item {
     readonly property bool isExtracting: hasArchive && isOwnOp && manager.status === "extracting"
     readonly property bool isComplete: hasArchive && isOwnOp && manager.status === "extracted"
     readonly property bool hasError: hasArchive && isOwnOp && (manager.status==="error"||manager.status==="cancelled")
-    readonly property bool canExtract: hasArchive && !manager.busy && manager.status === "loaded"
     readonly property bool showList: hasArchive && manager.contents && (manager.contents.fileCount+manager.contents.dirCount)>0
+    readonly property bool canExtract: hasArchive && !manager.busy && showList && !isExtracting && !isComplete && !hasError
 
     readonly property string infoText: {
         if(!hasArchive) return ""
@@ -43,6 +43,8 @@ Item {
         onRejected:reextract=false}
 
     ColumnLayout{anchors.fill:parent;spacing:16
+
+        // Drop zone / archive info
         Rectangle{Layout.fillWidth:true;Layout.preferredHeight:!hasArchive?160:80;radius:20;color:"transparent"
             border.width:1.5;border.color:dragActive?colors.primary:colors.outlineVariant
             Behavior on Layout.preferredHeight{NumberAnimation{duration:250;easing.type:Easing.OutCubic}}
@@ -65,6 +67,7 @@ Item {
         LinearProgressIndicator{Layout.fillWidth:true;visible:isExtracting||manager.status==="loading"
             progress:manager.progress>=0?manager.progress:0;indeterminate:manager.progress<0||manager.status==="loading"}
 
+        // File list
         Rectangle{Layout.fillWidth:true;Layout.fillHeight:true;radius:14;clip:true;color:colors.surfaceContainerHigh;visible:showList
             ListView{id:fl;anchors.fill:parent;anchors.margins:6;model:manager.contents;boundsBehavior:Flickable.StopAtBounds;spacing:1
                 QC.ScrollBar.vertical:QC.ScrollBar{policy:QC.ScrollBar.AsNeeded}
@@ -77,22 +80,27 @@ Item {
 
         Item{Layout.fillHeight:true;visible:!showList}
 
-        ColumnLayout{Layout.fillWidth:true;spacing:8;visible:canExtract
-            Text{text:"Extract to";font.family:ChiTheme.fontFamily;font.pixelSize:12;color:colors.onSurfaceVariant}
-            RowLayout{Layout.fillWidth:true;spacing:10
-                Rectangle{Layout.fillWidth:true;height:40;radius:12;color:colors.surfaceContainerHighest
-                    Text{anchors.fill:parent;anchors.leftMargin:14;anchors.rightMargin:14;verticalAlignment:Text.AlignVCenter
-                        text:manager.destinationPath||"";font.family:ChiTheme.fontFamily;font.pixelSize:13;color:colors.onSurface;elide:Text.ElideMiddle}}
-                IconButton{icon:"folder_open";variant:"standard";size:"small";onClicked:{destDlg.reextract=false;destDlg.open()}}}}
+        // Destination — compact single row
+        RowLayout{Layout.fillWidth:true;spacing:14;visible:canExtract
+            Text{text:"Extract to:";font.family:ChiTheme.fontFamily;font.pixelSize:12;color:colors.onSurfaceVariant;Layout.alignment:Qt.AlignVCenter}
+            Rectangle{Layout.fillWidth:true;height:38;radius:12;color:colors.surfaceContainerHighest
+                Text{anchors.fill:parent;anchors.leftMargin:14;anchors.rightMargin:14;verticalAlignment:Text.AlignVCenter
+                    text:manager.destinationPath||"";font.family:ChiTheme.fontFamily;font.pixelSize:13;color:colors.onSurface;elide:Text.ElideMiddle}}
+            IconButton{icon:"folder_open";variant:"standard";size:"small";onClicked:{destDlg.reextract=false;destDlg.open()}}}
 
         Item{Layout.preferredHeight:4}
 
+        // Actions — right-aligned, natural width
         RowLayout{Layout.fillWidth:true;spacing:12
-            Button{visible:canExtract;Layout.fillWidth:true;text:"Extract";variant:"filled";showIcon:true;icon:"unarchive";onClicked:extractRequested()}
-            Button{visible:isExtracting;Layout.fillWidth:true;text:"Cancel";variant:"outlined";onClicked:manager.cancel()}
-            Button{visible:isComplete;Layout.fillWidth:true;text:"Open Folder";variant:"outlined";showIcon:true;icon:"folder_open";onClicked:Qt.openUrlExternally("file://"+manager.destinationPath)}
-            Button{visible:isComplete;Layout.fillWidth:true;text:"Extract Another";variant:"filled";showIcon:true;icon:"unarchive";onClicked:manager.clear()}
-            Button{visible:hasError;Layout.fillWidth:true;text:"Try Again";variant:"filled";onClicked:manager.clear()}}
+            Item{Layout.fillWidth:true}
+            Button{visible:canExtract;text:"Clear";variant:"text";onClicked:manager.clear()}
+            Button{visible:isExtracting;text:"Cancel";variant:"outlined";onClicked:manager.cancel()}
+            Button{visible:isComplete;text:"Open Folder";variant:"outlined";showIcon:true;icon:"folder_open";onClicked:Qt.openUrlExternally("file://"+manager.destinationPath)}
+            Button{visible:isComplete;text:"Extract Another";variant:"filled";showIcon:true;icon:"unarchive";onClicked:manager.clear()}
+            Button{visible:hasError;text:"Try Again";variant:"filled";onClicked:manager.clear()}
+            Button{visible:canExtract;text:"Extract";variant:"filled";showIcon:true;icon:"unarchive";onClicked:extractRequested()}}
+
         Item{Layout.preferredHeight:2}
-        Text{visible:!hasArchive;text:"ZIP · TAR · GZ · BZ2 · XZ · 7Z · RAR · ISO · DEB · RPM";font.family:ChiTheme.fontFamily;font.pixelSize:11;color:colors.outline;Layout.alignment:Qt.AlignHCenter}}
+        Text{visible:!hasArchive;text:"ZIP · TAR · GZ · BZ2 · XZ · 7Z · RAR · ISO · DEB · RPM";font.family:ChiTheme.fontFamily;font.pixelSize:11;color:colors.outline;Layout.alignment:Qt.AlignHCenter}
+    }
 }

@@ -4,7 +4,7 @@ import Chi
 import ChiExtract.Backend 1.0
 
 ChiApplicationWindow {
-    id: root; title:"ChiExtract"; width:780; height:520; minimumWidth:600; minimumHeight:420
+    id: root; title:"ChiExtract"; width:470; height:590; minimumWidth:420; minimumHeight:560
     property int mode: 0
     property var colors: ChiTheme.colors
     ArchiveManager { id: mgr }
@@ -44,10 +44,77 @@ ChiApplicationWindow {
         ColumnLayout{anchors.horizontalCenter:parent.horizontalCenter;anchors.top:parent.top;anchors.bottom:parent.bottom;width:Math.min(parent.width,600);spacing:0
             Item{Layout.fillWidth:true;Layout.preferredHeight:52;SegmentedButton{anchors.centerIn:parent;segments:[{text:"Extract"},{text:"Create"}];selectedIndex:mode;onSelectionChanged:function(i){mode=i[0]}}}
             Item{Layout.preferredHeight:16}
-            ExtractView{id:exV;Layout.fillWidth:true;Layout.fillHeight:true;visible:mode===0;manager:mgr;dragActive:wD.containsDrag&&mode===0;onExtractRequested:extractFlow.start()}
-            CreateView{id:crV;Layout.fillWidth:true;Layout.fillHeight:true;visible:mode===1;manager:mgr;dragActive:wD.containsDrag&&mode===1}}}
 
-    // ── Extract flow (multi-step) ─────────────────────────
+            // No clip — lets animations breathe beyond edges
+            Item{Layout.fillWidth:true;Layout.fillHeight:true
+
+                ExtractView{
+                    id:exV;anchors.fill:parent;manager:mgr
+                    dragActive:wD.containsDrag&&mode===0
+                    onExtractRequested:extractFlow.start()
+
+                    transform:Translate{id:exTx;x:0}
+                    opacity:1
+
+                    states:[
+                        State{name:"active";when:mode===0
+                            PropertyChanges{target:exTx;x:0}
+                            PropertyChanges{target:exV;opacity:1;visible:true}},
+                        State{name:"inactive";when:mode!==0
+                            PropertyChanges{target:exTx;x:-60}
+                            PropertyChanges{target:exV;opacity:0;visible:false}}
+                    ]
+                    transitions:[
+                        Transition{from:"active";to:"inactive"
+                            SequentialAnimation{
+                                ParallelAnimation{
+                                    NumberAnimation{target:exTx;property:"x";to:-60;duration:280;easing.type:Easing.InOutQuart}
+                                    NumberAnimation{target:exV;property:"opacity";to:0;duration:180;easing.type:Easing.OutCubic}}
+                                PropertyAction{target:exV;property:"visible";value:false}}},
+                        Transition{from:"inactive";to:"active"
+                            SequentialAnimation{
+                                PropertyAction{target:exV;property:"visible";value:true}
+                                ParallelAnimation{
+                                    NumberAnimation{target:exTx;property:"x";from:40;to:0;duration:450;easing.type:Easing.OutBack;easing.overshoot:1.2}
+                                    NumberAnimation{target:exV;property:"opacity";from:0;to:1;duration:300;easing.type:Easing.OutCubic}}}}
+                    ]
+                }
+
+                CreateView{
+                    id:crV;anchors.fill:parent;manager:mgr
+                    dragActive:wD.containsDrag&&mode===1
+
+                    transform:Translate{id:crTx;x:0}
+                    opacity:1
+
+                    states:[
+                        State{name:"active";when:mode===1
+                            PropertyChanges{target:crTx;x:0}
+                            PropertyChanges{target:crV;opacity:1;visible:true}},
+                        State{name:"inactive";when:mode!==1
+                            PropertyChanges{target:crTx;x:60}
+                            PropertyChanges{target:crV;opacity:0;visible:false}}
+                    ]
+                    transitions:[
+                        Transition{from:"active";to:"inactive"
+                            SequentialAnimation{
+                                ParallelAnimation{
+                                    NumberAnimation{target:crTx;property:"x";to:60;duration:280;easing.type:Easing.InOutQuart}
+                                    NumberAnimation{target:crV;property:"opacity";to:0;duration:180;easing.type:Easing.OutCubic}}
+                                PropertyAction{target:crV;property:"visible";value:false}}},
+                        Transition{from:"inactive";to:"active"
+                            SequentialAnimation{
+                                PropertyAction{target:crV;property:"visible";value:true}
+                                ParallelAnimation{
+                                    NumberAnimation{target:crTx;property:"x";from:-40;to:0;duration:450;easing.type:Easing.OutBack;easing.overshoot:1.2}
+                                    NumberAnimation{target:crV;property:"opacity";from:0;to:1;duration:300;easing.type:Easing.OutCubic}}}}
+                    ]
+                }
+            }
+        }
+    }
+
+    // ── Extract flow ──────────────────────────────────────
     QtObject {
         id: extractFlow
         function start() {
@@ -61,6 +128,13 @@ ChiApplicationWindow {
         }
     }
 
+    FileDialog{id:elsewhereDlg;mode:"folder";title:"Extract To"
+        onAccepted:{
+            mgr.setDestinationFolder(selectedFile.toString())
+            folderDlg.visible=false
+            mgr.extract()
+        }}
+
     // ── Step 1: Folder exists ─────────────────────────────
     Item{id:folderDlg;visible:false;anchors.fill:parent;z:200
         Rectangle{anchors.fill:parent;color:"#000000";opacity:0.4;MouseArea{anchors.fill:parent}}
@@ -72,10 +146,19 @@ ChiApplicationWindow {
                 Item{Layout.preferredHeight:4}
                 Button{Layout.fillWidth:true;text:"Extract Into Existing";variant:"filled";onClicked:{folderDlg.visible=false;extractFlow.checkFiles()}}
                 Button{Layout.fillWidth:true;text:"Rename Folder";variant:"outlined";onClicked:{folderDlg.visible=false;renameFolderDlg.visible=true}}
+                Button{Layout.fillWidth:true;text:"Extract Elsewhere";variant:"outlined";onClicked:{folderDlg.visible=false;elsewhereDlg.open()}}
                 Button{Layout.fillWidth:true;text:"Cancel";variant:"text";onClicked:folderDlg.visible=false}}}}
 
     // ── Rename folder sub-dialog ──────────────────────────
     Item{id:renameFolderDlg;visible:false;anchors.fill:parent;z:200
+
+        function applyRename(){
+            if(rfInput.text.length===0)return
+            var parts=mgr.destinationPath.split("/");parts.pop()
+            mgr.destinationPath=parts.join("/")+"/"+rfInput.text
+            renameFolderDlg.visible=false;extractFlow.start()
+        }
+
         Rectangle{anchors.fill:parent;color:"#000000";opacity:0.4;MouseArea{anchors.fill:parent}}
         Rectangle{anchors.centerIn:parent;width:360;height:rfC.implicitHeight+48;radius:28;color:colors.surfaceContainerHigh
             ColumnLayout{id:rfC;anchors.left:parent.left;anchors.right:parent.right;anchors.verticalCenter:parent.verticalCenter;anchors.margins:28;spacing:12
@@ -84,14 +167,13 @@ ChiApplicationWindow {
                 Rectangle{Layout.fillWidth:true;height:44;radius:12;color:colors.surfaceContainerHighest
                     TextInput{id:rfInput;anchors.fill:parent;anchors.leftMargin:16;anchors.rightMargin:16;verticalAlignment:Text.AlignVCenter
                         font.family:ChiTheme.fontFamily;font.pixelSize:14;color:colors.onSurface;selectionColor:colors.primary;selectedTextColor:colors.onPrimary;clip:true
-                        onAccepted:if(text.length>0){_applyRename()}}}
+                        onAccepted:renameFolderDlg.applyRename()}}
                 Item{Layout.preferredHeight:2}
-                Button{Layout.fillWidth:true;text:"Save";variant:"filled";enabled:rfInput.text.length>0;onClicked:_applyRename()}
-                Button{Layout.fillWidth:true;text:"Cancel";variant:"text";onClicked:renameFolderDlg.visible=false}}
-            function _applyRename(){
-                var parts=mgr.destinationPath.split("/");parts.pop();
-                mgr.destinationPath=parts.join("/")+"/"+rfInput.text
-                renameFolderDlg.visible=false;extractFlow.start()}}
+                Button{Layout.fillWidth:true;variant:"filled";showIcon:true;icon:"unarchive"
+                    text:"Extract as \""+rfInput.text+"\""
+                    enabled:rfInput.text.length>0
+                    onClicked:renameFolderDlg.applyRename()}
+                Button{Layout.fillWidth:true;text:"Cancel";variant:"text";onClicked:renameFolderDlg.visible=false}}}
         onVisibleChanged:if(visible){rfInput.text=mgr.archiveBaseName+"_1";rfInput.forceActiveFocus();rfInput.selectAll()}}
 
     // ── Step 2: File conflicts ────────────────────────────
@@ -106,7 +188,6 @@ ChiApplicationWindow {
                 Button{Layout.fillWidth:true;text:"Overwrite All";variant:"filled";onClicked:{mgr.conflictMode=0;mgr.extract();fileDlg.visible=false}}
                 Button{Layout.fillWidth:true;text:"Skip Existing";variant:"outlined";onClicked:{mgr.conflictMode=1;mgr.extract();fileDlg.visible=false}}
                 Button{Layout.fillWidth:true;text:"Auto-Rename";variant:"outlined";onClicked:{mgr.conflictMode=2;mgr.extract();fileDlg.visible=false}}
-                Button{Layout.fillWidth:true;text:"Extract Elsewhere";variant:"outlined";onClicked:{fileDlg.visible=false;exV.changeDestinationThenExtract()}}
                 Button{Layout.fillWidth:true;text:"Cancel";variant:"text";onClicked:fileDlg.visible=false}}}}
 
     // ── Settings ──────────────────────────────────────────

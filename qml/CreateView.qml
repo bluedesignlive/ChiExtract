@@ -25,6 +25,14 @@ Item {
 
     function openAddFiles(){addDlg.open()}
 
+    readonly property string createInfoText: {
+        if(!hasFiles) return ""
+        if(isCreating) return Math.round(manager.progress*100)+"% — "+(manager.currentEntry||"")
+        if(isCreated) return "Archive created"
+        if(hasError) return manager.status==="error"?(manager.errorMessage||"Error"):"Cancelled"
+        return manager.createFiles.length+(manager.createFiles.length===1?" item":" items")+" · "+manager.createFilesSize
+    }
+
     FileDialog{id:addDlg;mode:"openMultiple";title:"Add Files"
         onAccepted:{var p=[];for(var i=0;i<selectedFiles.length;i++)p.push(selectedFiles[i].toString());manager.addFiles(p)}}
     FileDialog{id:folderDlg;mode:"folder";title:"Add Folder";onAccepted:manager.addFiles([selectedFile.toString()])}
@@ -38,7 +46,7 @@ Item {
         else manager.createArchive(full,ext)
     }
 
-    // ── Overwrite dialog with rename ──────────────────────
+    // ── Overwrite dialog ──────────────────────────────────
     Item{id:owDlg;visible:false;anchors.fill:parent;z:200;property string archivePath:""
         Rectangle{anchors.fill:parent;color:"#000000";opacity:0.4;MouseArea{anchors.fill:parent}}
         Rectangle{anchors.centerIn:parent;width:360;height:owC.implicitHeight+48;radius:28;color:colors.surfaceContainerHigh
@@ -64,28 +72,40 @@ Item {
     }
 
     ColumnLayout{anchors.fill:parent;spacing:16
+
+        // Drop zone / status box
         Rectangle{Layout.fillWidth:true;Layout.preferredHeight:!hasFiles?140:68;radius:20;color:"transparent"
             border.width:1.5;border.color:dragActive?colors.primary:colors.outlineVariant
             Behavior on Layout.preferredHeight{NumberAnimation{duration:250;easing.type:Easing.OutCubic}}
             Behavior on border.color{ColorAnimation{duration:150}}
             Rectangle{anchors.fill:parent;radius:parent.radius;color:colors.primary;opacity:dragActive?0.08:0;Behavior on opacity{NumberAnimation{duration:150}}}
-            MouseArea{anchors.fill:parent;enabled:!manager.busy;hoverEnabled:true;cursorShape:Qt.PointingHandCursor;onClicked:addDlg.open()}
+            MouseArea{anchors.fill:parent;enabled:!manager.busy&&!isCreated;hoverEnabled:true;cursorShape:Qt.PointingHandCursor;onClicked:addDlg.open()}
+
             ColumnLayout{anchors.centerIn:parent;spacing:8;visible:!hasFiles
                 Icon{source:"note_add";size:36;color:colors.onSurfaceVariant;Layout.alignment:Qt.AlignHCenter}
                 Text{text:"Drop files here or click to browse";font.family:ChiTheme.fontFamily;font.pixelSize:15;font.weight:Font.Medium;color:colors.onSurface;Layout.alignment:Qt.AlignHCenter}}
-            RowLayout{anchors.fill:parent;anchors.margins:14;spacing:12;visible:hasFiles
-                Icon{source:"inventory_2";size:28;color:colors.onSurfaceVariant}
-                ColumnLayout{Layout.fillWidth:true;spacing:2
-                    Text{text:manager.createFiles.length+(manager.createFiles.length===1?" item":" items");font.family:ChiTheme.fontFamily;font.pixelSize:14;font.weight:Font.Medium;color:colors.onSurface}
-                    Text{text:manager.createFilesSize+" total";font.family:ChiTheme.fontFamily;font.pixelSize:12;color:colors.onSurfaceVariant}}}}
 
-        RowLayout{Layout.fillWidth:true;spacing:10;visible:!manager.busy&&!isCreated
-            Button{Layout.fillWidth:true;text:"Add Files";variant:"tonal";showIcon:true;icon:"add";onClicked:addDlg.open()}
-            Button{Layout.fillWidth:true;text:"Add Folder";variant:"tonal";showIcon:true;icon:"create_new_folder";onClicked:folderDlg.open()}}
+            RowLayout{anchors.fill:parent;anchors.margins:14;spacing:12;visible:hasFiles
+                Icon{size:28;Layout.alignment:Qt.AlignVCenter
+                    source:hasError?"error":isCreated?"check_circle":isCreating?"hourglass_empty":"inventory_2"
+                    color:hasError?colors.error:isCreated?colors.primary:colors.onSurfaceVariant}
+                ColumnLayout{Layout.fillWidth:true;spacing:2
+                    Text{text:isCreated?"Archive created":isCreating?"Creating…":manager.createFiles.length+(manager.createFiles.length===1?" item":" items")
+                        font.family:ChiTheme.fontFamily;font.pixelSize:14;font.weight:Font.Medium;color:colors.onSurface}
+                    Text{text:createInfoText;font.family:ChiTheme.fontFamily;font.pixelSize:12
+                        color:hasError?colors.error:colors.onSurfaceVariant;elide:Text.ElideRight;Layout.fillWidth:true}}
+                IconButton{icon:"close";variant:"standard";size:"small";visible:hasFiles&&!manager.busy&&!isCreated;onClicked:manager.clearFiles()}}}
+
+        // Add buttons — right-aligned
+        RowLayout{Layout.fillWidth:true;spacing:10;visible:!manager.busy&&!isCreated&&hasFiles
+            Item{Layout.fillWidth:true}
+            Button{text:"Add Files";variant:"tonal";showIcon:true;icon:"add";onClicked:addDlg.open()}
+            Button{text:"Add Folder";variant:"tonal";showIcon:true;icon:"create_new_folder";onClicked:folderDlg.open()}}
 
         LinearProgressIndicator{Layout.fillWidth:true;visible:isCreating
             progress:manager.progress>=0?manager.progress:0;indeterminate:manager.progress<0}
 
+        // File list
         Rectangle{Layout.fillWidth:true;Layout.fillHeight:true;radius:14;clip:true;color:colors.surfaceContainerHigh;visible:hasFiles
             ListView{id:cl;anchors.fill:parent;anchors.margins:6;model:manager.createFiles;boundsBehavior:Flickable.StopAtBounds;spacing:1
                 QC.ScrollBar.vertical:QC.ScrollBar{policy:QC.ScrollBar.AsNeeded}
@@ -99,6 +119,7 @@ Item {
 
         Item{Layout.fillHeight:true;visible:!hasFiles}
 
+        // Archive settings
         ColumnLayout{Layout.fillWidth:true;spacing:10;visible:canCreate
             RowLayout{Layout.fillWidth:true;spacing:14
                 Text{text:"Name:";font.family:ChiTheme.fontFamily;font.pixelSize:12;color:colors.onSurfaceVariant;Layout.alignment:Qt.AlignVCenter}
@@ -115,11 +136,13 @@ Item {
 
         Item{Layout.preferredHeight:4}
 
+        // Actions — right-aligned, natural width
         RowLayout{Layout.fillWidth:true;spacing:12
-            Button{visible:canCreate;Layout.fillWidth:true;text:"Create Archive";variant:"filled";showIcon:true;icon:"archive";onClicked:saveDlg.open()}
-            Button{visible:isCreating;Layout.fillWidth:true;text:"Cancel";variant:"outlined";onClicked:manager.cancel()}
-            Button{visible:isCreated;Layout.fillWidth:true;text:"Create Another";variant:"filled";onClicked:manager.clearFiles()}
-            Button{visible:hasError;Layout.fillWidth:true;text:"Try Again";variant:"filled";onClicked:manager.clearFiles()}
-            Button{visible:hasFiles&&!manager.busy&&!isCreated;text:"Clear";variant:"text";onClicked:manager.clearFiles()}}
+            Item{Layout.fillWidth:true}
+            Button{visible:hasFiles&&!manager.busy&&!isCreated;text:"Clear";variant:"text";onClicked:manager.clearFiles()}
+            Button{visible:isCreating;text:"Cancel";variant:"outlined";onClicked:manager.cancel()}
+            Button{visible:hasError;text:"Try Again";variant:"filled";onClicked:manager.clearFiles()}
+            Button{visible:isCreated;text:"Create Another";variant:"filled";onClicked:manager.clearFiles()}
+            Button{visible:canCreate;text:"Create Archive";variant:"filled";showIcon:true;icon:"archive";onClicked:saveDlg.open()}}
     }
 }
